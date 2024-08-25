@@ -1,11 +1,12 @@
 import os
+from xmlrpc.client import Boolean
 import asyncpg
 import importlib
 import argparse
 import asyncio
 from typing import List
 
-DSN = os.environ["DSN"] 
+DSN = os.environ["SMOLMIGRATE_DSN"] 
 
 async def migrations_init():
     directories = os.listdir()
@@ -24,6 +25,19 @@ async def migrations_init():
         print("A pg_migrations process has already been initialized")
     
     
+async def check_pg_migrations_exists() -> Boolean:
+    try:
+        result = await run_pg_query("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public'
+                AND table_name = 'pg_migrations'
+            )
+        """)
+        return result[0]['exists']
+    except Exception as e:
+        print(f"Error checking if pg_migrations table exists: {e}")
+        return False
 
 async def get_applied_migrations() -> List[str]:
     applied_migrations = await run_pg_query("SELECT filename FROM pg_migrations ORDER BY id")
@@ -43,10 +57,26 @@ async def add_migration(filename: str, sql: str):
     except Exception as e:
         print(f"Could not apply migration {filename}: {e}")
         os.remove(f"pg_migrations/{filename}.py")
+        
+async def pg_metadata_init():
+    try:
+        if not await check_pg_migrations_exists():
+            await run_pg_query("""
+                    CREATE TABLE IF NOT EXISTS pg_migrations (
+                        id SERIAL PRIMARY KEY,
+                        filename TEXT NOT NULL,
+                        applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+    except Exception as e:
+        print("Failed to init pg_metadata")
+    
 
 async def apply_pending_migrations():
-    if not os.path.exists("pg_migrations"):
+    if not os.path.exists("pg_migrations"): 
         print("Run migrations init!")
+    await pg_metadata_init()
+    
     applied_migrations = await get_applied_migrations()
     all_migrations = sorted([f[:-3] for f in os.listdir("pg_migrations") if f.endswith(".py") and f != "__init__.py"])
     
@@ -71,6 +101,7 @@ async def run_pg_query(query: str, *args):
 async def create_migration(name: str):
     if not os.path.exists("pg_migrations"):
         print("Run migrations init!")
+    await pg_metadata_init()
     migrations = os.listdir("pg_migrations")
     migration_number = len([f for f in migrations if f.endswith(".py") and f != "__init__.py"]) + 1
     filename = f"{migration_number:03d}_{name}.py"
@@ -90,13 +121,13 @@ async def create_migration(name: str):
     print(f"Created new migration file: {filename}")
 
 async def list_migrations():
-    applied_migrations = await get_applied_migrations()
     if os.path.exists("pg_migrations"):
         all_migrations = sorted([f[:-3] for f in os.listdir("pg_migrations") if f.endswith(".py") and f != "__init__.py"])
     else:
         print("Run migrations init!")
         return
-    
+    await pg_metadata_init()
+    applied_migrations = await get_applied_migrations()
     print("Migrations:")
     for migration in all_migrations:
         status = "Applied" if migration in applied_migrations else "Pending"
@@ -121,6 +152,8 @@ async def main():
         await create_migration(args.name)
     elif args.command == "list":
         await list_migrations()
+    elif args.command == "pg_metadata_init":
+        await pg_metadata_init()
 
 if __name__ == "__main__":
     asyncio.run(main())
