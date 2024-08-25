@@ -26,7 +26,7 @@ A lightweight Python-based SQL migration tool for managing PostgreSQL database s
 
 2. Set your PostgreSQL connection string as an environment variable:
    ```
-   export DSN="your_postgres_connection_string"
+   export SMOLMIGRATE_DSN="your_postgres_connection_string"
    ```
 
 3. (Optional) Use Docker to run PostgreSQL:
