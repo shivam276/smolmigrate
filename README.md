@@ -74,7 +74,6 @@ Available commands:
 ## Project Structure
 
 - `main.py`: Core functionality of the migration tool
-- `pg_migrations/`: Directory containing migration files
 - `docker-compose.yml`: Docker configuration for PostgreSQL (optional)
 - `main_test.py`: Test file for the migration tool
 
