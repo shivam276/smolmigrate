@@ -7,6 +7,7 @@ async def test_init():
     await migrations_init()
     directories = os.listdir()
     assert "pg_migrations" in directories
+    #lol
     files_in_directory = os.listdir("./pg_migrations")
     assert "migrations_completed.py" in files_in_directory
 
